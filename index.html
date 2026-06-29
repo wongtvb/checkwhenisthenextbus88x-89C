@@ -15,7 +15,7 @@
             --card-bg: #ffffff;
             --text-main: #1c1c1e;
             --text-sub: #8e8e93;
-            --accent: #e3001b; /* 九巴紅 */
+            --accent: #e3001b;
             --border-color: rgba(0, 0, 0, 0.05);
         }
         
@@ -51,17 +51,8 @@
             margin-bottom: 20px;
         }
 
-        h1 {
-            font-size: 26px;
-            font-weight: 700;
-        }
-
-        .refresh-btn {
-            background: none;
-            border: none;
-            font-size: 22px;
-            cursor: pointer;
-        }
+        h1 { font-size: 26px; font-weight: 700; }
+        .refresh-btn { background: none; border: none; font-size: 22px; cursor: pointer; }
 
         .bus-card {
             background-color: var(--card-bg);
@@ -78,16 +69,8 @@
             margin-bottom: 4px;
         }
 
-        .route-no {
-            font-size: 26px;
-            font-weight: 800;
-            color: var(--accent);
-        }
-
-        .route-dest {
-            font-size: 16px;
-            font-weight: 600;
-        }
+        .route-no { font-size: 26px; font-weight: 800; color: var(--accent); }
+        .route-dest { font-size: 16px; font-weight: 600; }
 
         .stop-name {
             font-size: 13px;
@@ -99,16 +82,9 @@
             display: inline-block;
         }
         
-        @media (prefers-color-scheme: dark) {
-            .stop-name { background: rgba(255,255,255,0.05); }
-        }
+        @media (prefers-color-scheme: dark) { .stop-name { background: rgba(255,255,255,0.05); } }
 
-        .eta-list {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
+        .eta-list { display: flex; flex-direction: column; gap: 6px; }
         .eta-item {
             display: flex;
             justify-content: space-between;
@@ -116,28 +92,13 @@
             padding: 8px 0;
             border-bottom: 1px solid var(--border-color);
         }
+        .eta-item:last-child { border-bottom: none; }
+        .eta-time { font-size: 16px; font-weight: 500; }
+        .eta-minutes { font-size: 16px; font-weight: 700; color: #34c759; }
 
-        .eta-item:last-child {
-            border-bottom: none;
-        }
-
-        .eta-time {
-            font-size: 16px;
-            font-weight: 500;
-        }
-
-        .eta-minutes {
-            font-size: 16px;
-            font-weight: 700;
-            color: #34c759;
-        }
-
-        /* iOS 原生風格底部導航列 */
         .tab-bar {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 0; left: 0; right: 0;
             height: 65px;
             background-color: var(--card-bg);
             display: flex;
@@ -147,33 +108,17 @@
         }
 
         .tab-item {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            color: var(--text-sub);
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            font-size: 11px; color: var(--text-sub);
+            background: none; border: none; cursor: pointer; font-weight: 600;
         }
-
-        .tab-item.active {
-            color: var(--accent);
-        }
-
-        .tab-icon {
-            font-size: 20px;
-            margin-bottom: 2px;
-        }
+        .tab-item.active { color: var(--accent); }
+        .tab-icon { font-size: 20px; margin-bottom: 2px; }
 
         #loading {
-            text-align: center;
-            color: var(--text-sub);
-            margin-top: 30px;
-            font-size: 15px;
+            text-align: center; color: var(--text-sub);
+            margin-top: 30px; font-size: 15px;
         }
     </style>
 </head>
@@ -184,7 +129,7 @@
         <button class="refresh-btn" onclick="render()">🔄</button>
     </div>
 
-    <div id="loading">正在下載車站數據 (首次載入需時)...</div>
+    <div id="loading">正在初始化九巴資料庫...</div>
     <div id="app-content"></div>
 
     <div class="tab-bar">
@@ -199,59 +144,76 @@
     </div>
 
     <script>
-        // 透過 路線 + 站名關鍵字 + 目的地關鍵字 進行完美篩選
+        // Configuration: Using exact KMB bounds ('outbound' / 'inbound')
         const config = {
             work: [
-                { route: '88X', stopKeyword: '德樂樓', destKeyword: '火炭', displayDest: '火炭 (穗禾苑)' },
-                { route: '88X', stopKeyword: '大老山隧道', destKeyword: '火炭', displayDest: '火炭 (穗禾苑)' },
-                { route: '85X', stopKeyword: '大老山隧道', destKeyword: '馬鞍山', displayDest: '馬鞍山市中心' },
-                { route: '89C', stopKeyword: '大老山隧道', destKeyword: '恆安', displayDest: '恆安' }
+                { route: '88X', bound: 'outbound', stopKeyword: '德樂樓', dest: '火炭 (穗禾苑)' },
+                { route: '88X', bound: 'outbound', stopKeyword: '大老山隧道', dest: '火炭 (穗禾苑)' },
+                { route: '85X', bound: 'outbound', stopKeyword: '大老山隧道', dest: '馬鞍山市中心' },
+                { route: '89C', bound: 'outbound', stopKeyword: '大老山隧道', dest: '恆安' }
             ],
             home: [
-                { route: '85X', stopKeyword: '大老山隧道', destKeyword: '紅磡', displayDest: '紅磡碼頭' },
-                { route: '89C', stopKeyword: '大老山隧道', destKeyword: '觀塘', displayDest: '觀塘 (翠屏道)' },
-                { route: '88X', stopKeyword: '大老山隧道', destKeyword: '平田', displayDest: '藍田 (平田)' }
+                { route: '85X', bound: 'inbound', stopKeyword: '大老山隧道', dest: '紅磡碼頭' },
+                { route: '89C', bound: 'inbound', stopKeyword: '大老山隧道', dest: '觀塘 (翠屏道)' },
+                { route: '88X', bound: 'inbound', stopKeyword: '大老山隧道', dest: '平田' }
             ]
         };
 
         let currentMode = 'work';
-        let stopsMap = {};
+        let allStops = {};
+        let routeStopsCache = {};
 
-        // 1. 初始化並快取全港巴士站名（避免每次都重複下載大檔案）
-        async function loadStopsDatabase() {
-            const cached = localStorage.getItem('kmb_stops_cache');
-            if (cached) {
-                stopsMap = JSON.parse(cached);
-                return;
-            }
-
+        // 1. Download all stop names so we can search them
+        async function initApp() {
             try {
                 const res = await fetch('https://data.etabus.gov.hk/v1/transport/kmb/stop');
                 const json = await res.json();
                 json.data.forEach(s => {
-                    stopsMap[s.stop] = s.name_tc;
+                    allStops[s.stop] = s.name_tc;
                 });
-                localStorage.setItem('kmb_stops_cache', JSON.stringify(stopsMap));
+                await render();
+                // Auto refresh every 30 seconds
+                setInterval(render, 30000);
             } catch (e) {
-                document.getElementById('loading').innerText = '網路錯誤，請重新整理頁面';
-                console.error(e);
+                document.getElementById('loading').innerText = '無法連線至九巴伺服器';
             }
         }
 
-        // 2. 獲取特定路線並篩選符合該站與方向的預報
+        // 2. Automatically find the exact 16-character KMB Stop ID based on route + direction
+        async function getStopId(route, bound, keyword) {
+            const cacheKey = `${route}_${bound}`;
+            let stops = routeStopsCache[cacheKey];
+            
+            if (!stops) {
+                const res = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${route}/${bound}/1`);
+                const json = await res.json();
+                stops = json.data;
+                routeStopsCache[cacheKey] = stops;
+            }
+
+            for (const s of stops) {
+                const name = allStops[s.stop] || '';
+                if (name.includes(keyword)) {
+                    return s.stop; // Found the exact KMB ID!
+                }
+            }
+            return null;
+        }
+
+        // 3. Fetch ETA using the exact Stop ID
         async function fetchETA(target) {
             try {
-                // 使用官方標準格式獲取該路線所有預報
-                const res = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/route-eta/${target.route}/1`);
+                const stopId = await getStopId(target.route, target.bound, target.stopKeyword);
+                if (!stopId) return []; // Stop not found in KMB database
+
+                const res = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${stopId}/${target.route}/1`);
                 const json = await res.json();
                 
                 if (!json.data) return [];
 
-                // 篩選：1. 站名要包含關鍵字 2. 目的地要符合方向
-                const filtered = json.data.filter(item => {
-                    const realStopName = stopsMap[item.stop] || '';
-                    return realStopName.includes(target.stopKeyword) && item.dest_tc.includes(target.destKeyword);
-                });
+                // KMB uses 'O' for outbound, 'I' for inbound in the ETA API
+                const targetDir = target.bound === 'outbound' ? 'O' : 'I';
+                const filtered = json.data.filter(item => item.dir === targetDir);
 
                 const uniqueEtas = [];
                 const seenTimes = new Set();
@@ -269,17 +231,14 @@
                     }
                 });
 
-                // 按抵達時間排序，取前 3 班車
                 uniqueEtas.sort((a, b) => a.minutes - b.minutes);
                 return uniqueEtas.slice(0, 3);
-
             } catch (e) {
-                console.error(`無法獲取 ${target.route} 資料`, e);
+                console.error(`Error fetching ETA for ${target.route}`, e);
                 return [];
             }
         }
 
-        // 3. 渲染網頁畫面
         async function render() {
             document.getElementById('loading').style.display = 'block';
             document.getElementById('loading').innerText = '正在更新班次預報...';
@@ -310,7 +269,7 @@
                     <div class="bus-card">
                         <div class="bus-header">
                             <span class="route-no">${t.route}</span>
-                            <span class="route-dest">往 ${t.displayDest}</span>
+                            <span class="route-dest">往 ${t.dest}</span>
                         </div>
                         <div class="stop-name">📍 ${t.stopKeyword}</div>
                         <div class="eta-list">${etaHtml}</div>
@@ -320,7 +279,6 @@
             document.getElementById('loading').style.display = 'none';
         }
 
-        // 頁面模式切換
         function switchMode(mode) {
             currentMode = mode;
             document.getElementById('tab-work').classList.toggle('active', mode === 'work');
@@ -329,13 +287,7 @@
             render();
         }
 
-        // 主程式啟動點
-        window.onload = async () => {
-            await loadStopsDatabase();
-            await render();
-            // 每 30 秒自動背景刷新一次
-            setInterval(render, 30000);
-        };
+        window.onload = initApp;
     </script>
 </body>
 </html>
