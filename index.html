@@ -174,19 +174,121 @@
     <script>
         // Configuration for your routes
         // Bound: 'O' (Outbound), 'I' (Inbound). If the route shows the wrong direction, flip 'O' to 'I'.
+// Updated Configuration using exact Stop IDs from KMB
         const config = {
             work: [
-                { route: '88X', bound: 'O', stopKeyword: '德樂樓', dest: '大老山隧道' },
-                { route: '85X', bound: 'O', stopKeyword: '大老山隧道', dest: '馬鞍山市中心' },
-                { route: '89C', bound: 'O', stopKeyword: '大老山隧道', dest: '恆安' }
+                { route: '88X', stopId: 'LT511', serviceType: '1', stopKeyword: '德樂樓', dest: '火炭 / 大老山隧道' },
+                { route: '85X', stopId: 'ST111', serviceType: '1', stopKeyword: '大老山隧道', dest: '馬鞍山市中心' },
+                { route: '89C', stopId: 'ST111', serviceType: '1', stopKeyword: '大老山隧道', dest: '恆安' }
             ],
             home: [
-                { route: '85X', bound: 'I', stopKeyword: '馬鞍山市中心', dest: '大老山隧道' },
-                { route: '89C', bound: 'I', stopKeyword: '恆安', dest: '大老山隧道' },
-                { route: '88X', bound: 'I', stopKeyword: '大老山隧道', dest: '德樂樓' }
+                // For home mode, we target the opposite side stops
+                { route: '85X', stopId: 'ST112', serviceType: '1', stopKeyword: '大老山隧道', dest: '紅磡碼頭' },
+                { route: '89C', stopId: 'ST112', serviceType: '1', stopKeyword: '大老山隧道', dest: '觀塘(翠屏道)' },
+                { route: '88X', stopId: 'ST112', serviceType: '1', stopKeyword: '大老山隧道', dest: '平田' }
             ]
         };
 
+        let currentMode = 'work';
+
+        // Fetch ETA using the Stop-Route endpoint
+        async function fetchETA(routeConfig) {
+            try {
+                // Using the exact KMB endpoint: /v1/transport/kmb/eta/{stop_id}/{route}/{service_type}
+                const res = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${routeConfig.stopId}/${routeConfig.route}/${routeConfig.serviceType}`);
+                const json = await res.json();
+                
+                if (!json.data || json.data.length === 0) return [];
+
+                const uniqueEtas = [];
+                const seenTimes = new Set();
+                const now = new Date();
+
+                json.data.forEach(item => {
+                    if (item.eta && !seenTimes.has(item.eta)) {
+                        seenTimes.add(item.eta);
+                        const etaDate = new Date(item.eta);
+                        const diffMs = etaDate - now;
+                        const diffMins = Math.max(0, Math.floor(diffMs / 60000));
+                        
+                        const timeString = etaDate.toLocaleTimeString('en-HK', { hour: '2-digit', minute: '2-digit', hour12: false });
+                        
+                        uniqueEtas.push({ minutes: diffMins, time: timeString });
+                    }
+                });
+
+                // Sort by earliest arrival time
+                uniqueEtas.sort((a, b) => a.minutes - b.minutes);
+                return uniqueEtas.slice(0, 3);
+
+            } catch (e) {
+                console.error(`Failed to fetch ETA for ${routeConfig.route} at ${routeConfig.stopId}`, e);
+                return [];
+            }
+        }
+
+        // Render the UI cards
+        async function render() {
+            showLoading(true);
+            const content = document.getElementById('app-content');
+            content.innerHTML = '';
+            
+            const routes = config[currentMode];
+            
+            for (const r of routes) {
+                const etas = await fetchETA(r);
+                
+                let etaHtml = '';
+                if (etas.length === 0) {
+                    etaHtml = '<div class="eta-item" style="color: #8e8e93;">暫無班次 / 尾班車已過</div>';
+                } else {
+                    etas.forEach((eta) => {
+                        const minText = eta.minutes === 0 ? '即將抵達' : `${eta.minutes} 分鐘`;
+                        etaHtml += `
+                            <div class="eta-item">
+                                <span class="eta-time">${eta.time}</span>
+                                <span class="eta-minutes">${minText}</span>
+                            </div>
+                        `;
+                    });
+                }
+
+                const card = `
+                    <div class="bus-card">
+                        <div class="bus-header">
+                            <span class="route-no">${r.route}</span>
+                            <span class="route-dest">往 ${r.dest}</span>
+                        </div>
+                        <div class="stop-name">📍 ${r.stopKeyword} (${r.stopId})</div>
+                        <div class="eta-list">
+                            ${etaHtml}
+                        </div>
+                    </div>
+                `;
+                content.innerHTML += card;
+            }
+            showLoading(false);
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById('tab-work').classList.toggle('active', mode === 'work');
+            document.getElementById('tab-home').classList.toggle('active', mode === 'home');
+            document.getElementById('page-title').innerText = mode === 'work' ? '上班路綫' : '回家路綫';
+            render();
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+            if (show) document.getElementById('app-content').innerHTML = '';
+        }
+
+        // Initialize App directly without needing to fetch the massive stop map
+        window.onload = () => {
+            render();
+            // Auto refresh every 30 seconds
+            setInterval(render, 30000);
+        };
         let currentMode = 'work';
         let stopsMap = {};
 
