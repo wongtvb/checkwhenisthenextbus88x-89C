@@ -129,7 +129,7 @@
         <button class="refresh-btn" onclick="render()">🔄</button>
     </div>
 
-    <div id="loading">正在初始化九巴資料庫...</div>
+    <div id="loading" style="display: none;">正在獲取最新班次...</div>
     <div id="app-content"></div>
 
     <div class="tab-bar">
@@ -144,82 +144,40 @@
     </div>
 
     <script>
-        // Configuration: Using exact KMB bounds ('outbound' / 'inbound')
+        // Use EXACT 16-character KMB Stop IDs for instant API response
         const config = {
             work: [
-                { route: '88X', bound: 'outbound', stopKeyword: '德樂樓', dest: '火炭 (穗禾苑)' },
-                { route: '88X', bound: 'outbound', stopKeyword: '大老山隧道', dest: '火炭 (穗禾苑)' },
-                { route: '85X', bound: 'outbound', stopKeyword: '大老山隧道', dest: '馬鞍山市中心' },
-                { route: '89C', bound: 'outbound', stopKeyword: '大老山隧道', dest: '恆安' }
+                { route: '88X', stopId: '543FD8B6C65D1C4C', stopName: '德樂樓', dest: '火炭 (穗禾苑)' },
+                { route: '88X', stopId: '7BFC2AE979358DA7', stopName: '大老山隧道', dest: '火炭 (穗禾苑)' },
+                { route: '85X', stopId: '7BFC2AE979358DA7', stopName: '大老山隧道', dest: '馬鞍山市中心' },
+                { route: '89C', stopId: '7BFC2AE979358DA7', stopName: '大老山隧道', dest: '恆安' }
             ],
             home: [
-                { route: '85X', bound: 'inbound', stopKeyword: '大老山隧道', dest: '紅磡碼頭' },
-                { route: '89C', bound: 'inbound', stopKeyword: '大老山隧道', dest: '觀塘 (翠屏道)' },
-                { route: '88X', bound: 'inbound', stopKeyword: '大老山隧道', dest: '平田' }
+                { route: '85X', stopId: '30D564180B68ECA8', stopName: '大老山隧道', dest: '紅磡碼頭' },
+                { route: '89C', stopId: '3114213F8975F536', stopName: '大老山隧道', dest: '觀塘 (翠屏道)' },
+                { route: '88X', stopId: '30D564180B68ECA8', stopName: '大老山隧道', dest: '平田' }
             ]
         };
 
         let currentMode = 'work';
-        let allStops = {};
-        let routeStopsCache = {};
 
-        // 1. Download all stop names so we can search them
-        async function initApp() {
-            try {
-                const res = await fetch('https://data.etabus.gov.hk/v1/transport/kmb/stop');
-                const json = await res.json();
-                json.data.forEach(s => {
-                    allStops[s.stop] = s.name_tc;
-                });
-                await render();
-                // Auto refresh every 30 seconds
-                setInterval(render, 30000);
-            } catch (e) {
-                document.getElementById('loading').innerText = '無法連線至九巴伺服器';
-            }
-        }
-
-        // 2. Automatically find the exact 16-character KMB Stop ID based on route + direction
-        async function getStopId(route, bound, keyword) {
-            const cacheKey = `${route}_${bound}`;
-            let stops = routeStopsCache[cacheKey];
-            
-            if (!stops) {
-                const res = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${route}/${bound}/1`);
-                const json = await res.json();
-                stops = json.data;
-                routeStopsCache[cacheKey] = stops;
-            }
-
-            for (const s of stops) {
-                const name = allStops[s.stop] || '';
-                if (name.includes(keyword)) {
-                    return s.stop; // Found the exact KMB ID!
-                }
-            }
-            return null;
-        }
-
-        // 3. Fetch ETA using the exact Stop ID
+        // Direct fetch using precise physical stop IDs (No database downloading required!)
         async function fetchETA(target) {
             try {
-                const stopId = await getStopId(target.route, target.bound, target.stopKeyword);
-                if (!stopId) return []; // Stop not found in KMB database
+                // If ID is missing, skip to avoid errors
+                if (target.stopId.includes('REPLACE_ME')) return [];
 
-                const res = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${stopId}/${target.route}/1`);
+                const res = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${target.stopId}/${target.route}/1`);
                 const json = await res.json();
                 
-                if (!json.data) return [];
-
-                // KMB uses 'O' for outbound, 'I' for inbound in the ETA API
-                const targetDir = target.bound === 'outbound' ? 'O' : 'I';
-                const filtered = json.data.filter(item => item.dir === targetDir);
+                if (!json.data || json.data.length === 0) return [];
 
                 const uniqueEtas = [];
                 const seenTimes = new Set();
                 const now = new Date();
 
-                filtered.forEach(item => {
+                json.data.forEach(item => {
+                    // Grab all valid ETAs for this specific physical pole
                     if (item.eta && !seenTimes.has(item.eta)) {
                         seenTimes.add(item.eta);
                         const etaDate = new Date(item.eta);
@@ -241,7 +199,6 @@
 
         async function render() {
             document.getElementById('loading').style.display = 'block';
-            document.getElementById('loading').innerText = '正在更新班次預報...';
             const content = document.getElementById('app-content');
             content.innerHTML = '';
             
@@ -271,7 +228,7 @@
                             <span class="route-no">${t.route}</span>
                             <span class="route-dest">往 ${t.dest}</span>
                         </div>
-                        <div class="stop-name">📍 ${t.stopKeyword}</div>
+                        <div class="stop-name">📍 ${t.stopName}</div>
                         <div class="eta-list">${etaHtml}</div>
                     </div>
                 `;
@@ -287,7 +244,11 @@
             render();
         }
 
-        window.onload = initApp;
+        // Boot instantly
+        window.onload = () => {
+            render();
+            setInterval(render, 30000);
+        };
     </script>
 </body>
 </html>
